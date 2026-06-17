@@ -21,6 +21,7 @@ Use these rules to save tokens and keep the project maintainable.
 - Keep Netlify Functions in modern default-export style.
 - Use structured scholarly APIs before webpage scraping.
 - Add bounded timeouts to external requests.
+- Keep URL availability checks lightweight: HEAD first, partial GET only when needed, and skip only clear 523 / origin-unreachable signals.
 - Return compact JSON: papers, plan, actions, researchAdvice, summary.
 
 ## Verification

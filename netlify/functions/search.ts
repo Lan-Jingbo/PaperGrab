@@ -51,6 +51,19 @@ type ResearchAdvice = {
   cautions: string[];
 };
 
+type UrlCheck = {
+  status: "ok" | "unreachable" | "unknown";
+  reason: string;
+};
+
+type AvailabilityResult = {
+  papers: Paper[];
+  checked: number;
+  skipped: number;
+  unknown: number;
+  blockedUrls: Set<string>;
+};
+
 type SemanticPaper = {
   paperId?: string;
   title?: string;
@@ -145,18 +158,32 @@ export default async (req: Request, _context: Context) => {
     return result.value.papers;
   });
 
-  const ranked = rankAndDedupe(papers, plan.concepts)
-    .filter((paper) => paper.pdfUrl)
-    .slice(0, 10);
-  const fallback = ranked.length > 0 ? ranked : rankAndDedupe(papers, plan.concepts).slice(0, 10);
+  const rankedAll = rankAndDedupe(papers, plan.concepts);
+  const pdfCandidates = rankedAll.filter((paper) => paper.pdfUrl).slice(0, 14);
+  const availability = await filterReachablePdfPapers(pdfCandidates);
+  const fallback =
+    availability.papers.length > 0
+      ? availability.papers.slice(0, 10)
+      : rankedAll
+          .filter((paper) => !paper.pdfUrl || !availability.blockedUrls.has(paper.pdfUrl))
+          .slice(0, 10);
   const pdfCount = fallback.filter((paper) => paper.pdfUrl).length;
+
+  actions.push({
+    manual:
+      "Availability manual: before spending tokens on PDF/source content, make a bounded HEAD or partial GET request and skip clear Cloudflare 523 origin-unreachable links.",
+    target: "Ranker",
+    status: "done",
+    found: fallback.length,
+    note: `Checked ${availability.checked} candidate PDF URLs; skipped ${availability.skipped} origin-unreachable links and kept ${availability.unknown} uncertain links.`,
+  });
 
   actions.push({
     manual: "Ranking manual",
     target: "Ranker",
     status: "done",
     found: fallback.length,
-    note: "Merged duplicate papers, preferred open PDFs, then ranked title and abstract matches.",
+    note: "Merged duplicate papers, preferred reachable open PDFs, then ranked title and abstract matches.",
   });
 
   const researchAdvice = await buildResearchAdvice(query, plan, fallback);
@@ -168,7 +195,7 @@ export default async (req: Request, _context: Context) => {
     researchAdvice,
     summary:
       fallback.length > 0
-        ? `Browsed ${plan.queries.length} targeted queries across paper sources and found ${fallback.length} papers. ${pdfCount} include direct PDF links.`
+        ? `Browsed ${plan.queries.length} targeted queries across paper sources and found ${fallback.length} papers. ${pdfCount} include direct PDF links.${availability.skipped > 0 ? ` Skipped ${availability.skipped} PDF links with origin-unreachable signals.` : ""}`
         : "No papers were found. Try a more specific method, domain, or phrase.",
     papers: fallback.map(({ score, ...paper }) => paper),
   });
@@ -580,6 +607,128 @@ function scorePaper(paper: Paper, concepts: string[]) {
   const pdfScore = paper.pdfUrl ? 20 : 0;
   const recencyScore = paper.year ? Math.max(0, Math.min(8, paper.year - 2018)) : 0;
   return matchScore + domainTitleScore + domainCoverageScore + pdfScore + recencyScore;
+}
+
+async function filterReachablePdfPapers(papers: Paper[]): Promise<AvailabilityResult> {
+  if (papers.length === 0) {
+    return { papers, checked: 0, skipped: 0, unknown: 0, blockedUrls: new Set() };
+  }
+
+  const checks = await Promise.allSettled(
+    papers.map(async (paper) => ({
+      paper,
+      check: await checkUrlAvailability(paper.pdfUrl),
+    })),
+  );
+
+  const kept: Paper[] = [];
+  const blockedUrls = new Set<string>();
+  let skipped = 0;
+  let unknown = 0;
+
+  checks.forEach((result) => {
+    if (result.status === "rejected") {
+      unknown += 1;
+      return;
+    }
+
+    const { paper, check } = result.value;
+    if (check.status === "unreachable" && paper.pdfUrl) {
+      skipped += 1;
+      blockedUrls.add(paper.pdfUrl);
+      return;
+    }
+
+    if (check.status === "unknown") unknown += 1;
+    kept.push(paper);
+  });
+
+  return {
+    papers: kept,
+    checked: papers.length,
+    skipped,
+    unknown,
+    blockedUrls,
+  };
+}
+
+async function checkUrlAvailability(url?: string): Promise<UrlCheck> {
+  if (!url) return { status: "unknown", reason: "No URL" };
+
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "HEAD",
+        headers: { Accept: "application/pdf,text/html;q=0.8,*/*;q=0.5" },
+      },
+      4500,
+    );
+
+    if (isOriginUnreachableStatus(response.status)) {
+      return { status: "unreachable", reason: `HTTP ${response.status}` };
+    }
+
+    if (response.ok) {
+      return { status: "ok", reason: `HTTP ${response.status}` };
+    }
+
+    if (shouldRetryWithPartialGet(response.status)) {
+      return checkUrlWithPartialGet(url);
+    }
+
+    return { status: "unknown", reason: `HTTP ${response.status}` };
+  } catch {
+    return { status: "unknown", reason: "HEAD request failed" };
+  }
+}
+
+async function checkUrlWithPartialGet(url: string): Promise<UrlCheck> {
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/pdf,text/html;q=0.8,*/*;q=0.5",
+          Range: "bytes=0-2047",
+        },
+      },
+      5500,
+    );
+
+    if (isOriginUnreachableStatus(response.status)) {
+      return { status: "unreachable", reason: `HTTP ${response.status}` };
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("text/html") || contentType.includes("text/plain")) {
+      const preview = await response.text();
+      if (hasOriginUnreachableSignal(preview)) {
+        return { status: "unreachable", reason: "Origin-unreachable page body" };
+      }
+    }
+
+    if (response.ok) {
+      return { status: "ok", reason: `HTTP ${response.status}` };
+    }
+
+    return { status: "unknown", reason: `HTTP ${response.status}` };
+  } catch {
+    return { status: "unknown", reason: "Partial GET failed" };
+  }
+}
+
+function isOriginUnreachableStatus(status: number) {
+  return status === 523;
+}
+
+function shouldRetryWithPartialGet(status: number) {
+  return status === 401 || status === 403 || status === 405 || status === 406 || status === 501;
+}
+
+function hasOriginUnreachableSignal(value: string) {
+  return /error code\s*523|origin is unreachable/i.test(value);
 }
 
 function normalizeList(value: unknown) {
