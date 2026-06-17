@@ -34,6 +34,7 @@ PaperGrab is a React + Netlify web app for researchers. The user describes a res
 - `src/components/`: UI sections
 - `src/api/papers.js`: frontend API helper
 - `src/styles.css`: shared UI styling
+- `public/papergrab-logo.svg`: cat-inspired product logo and favicon
 - `netlify/functions/search.ts`: search planning, source browsing, ranking, research advice
 - `CODING_RULES.md`: local rules for future changes
 

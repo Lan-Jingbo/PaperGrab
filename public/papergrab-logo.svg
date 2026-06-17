@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">PaperGrab logo</title>
+  <desc id="desc">A tabby and white cat face holding a research paper.</desc>
+  <rect width="96" height="96" rx="22" fill="#fffdfa" />
+  <path d="M24 42 18 13c-.8-3.8 3.7-6.4 6.7-3.9l20 16.5Z" fill="#8a643f" stroke="#1f2328" stroke-width="4" stroke-linejoin="round" />
+  <path d="m72 42 6-29c.8-3.8-3.7-6.4-6.7-3.9l-20 16.5Z" fill="#8a643f" stroke="#1f2328" stroke-width="4" stroke-linejoin="round" />
+  <path d="M25.8 20.5 30 41.2 41.5 30Z" fill="#c79a6e" opacity=".75" />
+  <path d="M70.2 20.5 66 41.2 54.5 30Z" fill="#c79a6e" opacity=".75" />
+  <path d="M15 47.5C15 29.6 29.4 20 48 20s33 9.6 33 27.5C81 65 68.3 78 48 78S15 65 15 47.5Z" fill="#ffffff" stroke="#1f2328" stroke-width="4" />
+  <path d="M18 45.5C19.5 29.6 32.7 20 48 20v35.7c-6-4.6-10.8-6.9-14.4-6.9-5 0-9.8-1.1-15.6-3.3Z" fill="#7a613f" />
+  <path d="M78 45.5C76.5 29.6 63.3 20 48 20v35.7c6-4.6 10.8-6.9 14.4-6.9 5 0 9.8-1.1 15.6-3.3Z" fill="#7a613f" />
+  <path d="M39.5 21.3c3.1-.8 5.9-1.3 8.5-1.3s5.4.5 8.5 1.3l-4.4 18.6h-8.2Z" fill="#4a3827" />
+  <path d="M33 24.5c4.4-2.3 9.5-3.5 15-3.5v6.2c-3.1 2-5.9 4.9-8.4 8.7Z" fill="#5d452f" />
+  <path d="M63 24.5C58.6 22.2 53.5 21 48 21v6.2c3.1 2 5.9 4.9 8.4 8.7Z" fill="#5d452f" />
+  <path d="M43 31.4h10l-2.1 11.8h-5.8Z" fill="#ffffff" />
+  <circle cx="35" cy="47" r="8.8" fill="#d1bf6a" stroke="#1f2328" stroke-width="3" />
+  <circle cx="61" cy="47" r="8.8" fill="#d1bf6a" stroke="#1f2328" stroke-width="3" />
+  <circle cx="36.8" cy="47.4" r="4.3" fill="#1f2328" />
+  <circle cx="59.2" cy="47.4" r="4.3" fill="#1f2328" />
+  <circle cx="38.1" cy="45.7" r="1.5" fill="#ffffff" />
+  <circle cx="60.5" cy="45.7" r="1.5" fill="#ffffff" />
+  <path d="M45 57.7c0-2 1.3-3.2 3-3.2s3 1.2 3 3.2c0 1.9-1.8 3.8-3 3.8s-3-1.9-3-3.8Z" fill="#6b4a32" stroke="#1f2328" stroke-width="2" />
+  <path d="M48 61.3v4.2" stroke="#1f2328" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M48 65.5c-3.5 4-8.5 3.1-10.5-.2" fill="none" stroke="#1f2328" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M48 65.5c3.5 4 8.5 3.1 10.5-.2" fill="none" stroke="#1f2328" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M28 58.5c-6.2-1.8-11.5-2.4-16-1.7" stroke="#8a8d88" stroke-width="2" stroke-linecap="round" />
+  <path d="M28.5 64c-6.5.2-11.7 1.4-15.6 3.7" stroke="#8a8d88" stroke-width="2" stroke-linecap="round" />
+  <path d="M68 58.5c6.2-1.8 11.5-2.4 16-1.7" stroke="#8a8d88" stroke-width="2" stroke-linecap="round" />
+  <path d="M67.5 64c6.5.2 11.7 1.4 15.6 3.7" stroke="#8a8d88" stroke-width="2" stroke-linecap="round" />
+  <path d="M29 74.2c0-3.4 2.8-6.2 6.2-6.2h25.6c3.4 0 6.2 2.8 6.2 6.2V86H29Z" fill="#276066" stroke="#1f2328" stroke-width="4" stroke-linejoin="round" />
+  <path d="M36.5 74.5h23" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" opacity=".92" />
+  <path d="M36.5 80h17" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" opacity=".72" />
+</svg>

@@ -1,5 +1,4 @@
 import React from "react";
-import { BookOpen } from "lucide-react";
 import { searchPapers } from "./api/papers.js";
 import { starterPrompts } from "./constants.js";
 import { Notice } from "./components/Notice.jsx";
@@ -50,7 +49,7 @@ function App() {
       <section className="hero" aria-label="PaperGrab intro">
         <div className="brand-row">
           <span className="brand-mark">
-            <BookOpen size={20} aria-hidden="true" />
+            <img src="/papergrab-logo.svg" alt="" />
           </span>
           <span>PaperGrab</span>
         </div>
