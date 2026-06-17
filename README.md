@@ -253,3 +253,7 @@ npm run netlify:dev
 ```bash
 npm run build
 ```
+
+## Project Notes
+
+Future development should start by reading `PROJECT_CONTEXT.md`, then `CODING_RULES.md`.
