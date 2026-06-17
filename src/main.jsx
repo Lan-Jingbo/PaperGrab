@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BookOpen, Clipboard, Download, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
+import { BookOpen, Brain, Clipboard, Download, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
 import "./styles.css";
 
 const starterPrompts = [
@@ -12,6 +12,8 @@ const starterPrompts = [
 function App() {
   const [query, setQuery] = React.useState(starterPrompts[0]);
   const [papers, setPapers] = React.useState([]);
+  const [plan, setPlan] = React.useState(null);
+  const [actions, setActions] = React.useState([]);
   const [summary, setSummary] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -39,10 +41,14 @@ function App() {
       }
 
       setPapers(payload.papers || []);
+      setPlan(payload.plan || null);
+      setActions(payload.actions || []);
       setSummary(payload.summary || "");
     } catch (err) {
       setError(err.message);
       setPapers([]);
+      setPlan(null);
+      setActions([]);
       setSummary("");
     } finally {
       setLoading(false);
@@ -85,27 +91,57 @@ function App() {
         <section className="chat">
           <div className="chat-header">
             <div>
-              <span className="eyebrow">Academic reference assistant</span>
-              <h2>Tell me what paper references you need.</h2>
+              <span className="eyebrow">AI paper browsing agent</span>
+              <h2>Describe your research need. I will browse paper sources.</h2>
             </div>
-            <div className="status-pill">PDF-first search</div>
+            <div className="status-pill">ActionBook-style browsing</div>
           </div>
 
           <form className="composer" onSubmit={searchPapers}>
             <textarea
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Describe your research topic, method, field, or paper angle..."
+              placeholder="Example: I study binary star systems and want papers about applying machine learning to detection, classification, or orbital parameter estimation."
               rows={4}
             />
             <button type="submit" disabled={loading || !query.trim()}>
               {loading ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Search size={18} aria-hidden="true" />}
-              <span>{loading ? "Searching" : "Grab papers"}</span>
+              <span>{loading ? "Browsing" : "Browse papers"}</span>
             </button>
           </form>
 
           {error && <div className="notice error">{error}</div>}
           {summary && <div className="notice">{summary}</div>}
+
+          {(plan || actions.length > 0) && (
+            <section className="agent-panel" aria-label="Browsing plan and actions">
+              <div className="agent-plan">
+                <div className="panel-heading">
+                  <Brain size={18} aria-hidden="true" />
+                  <h2>Research Plan</h2>
+                </div>
+                <p>{plan?.intent}</p>
+                <div className="query-list">
+                  {(plan?.queries || []).map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="action-log">
+                {actions.map((action, index) => (
+                  <div className="action-row" key={`${action.target}-${action.query || action.note}-${index}`}>
+                    <span className={`action-state ${action.status}`}>{action.status}</span>
+                    <div>
+                      <strong>{action.target}</strong>
+                      <p>{action.query ? `${action.query} · ` : ""}{action.note}</p>
+                    </div>
+                    <span className="action-count">{action.found}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="results">
             {papers.map((paper) => (

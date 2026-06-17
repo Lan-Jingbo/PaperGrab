@@ -80,7 +80,9 @@ p {
 }
 
 .brand p,
-.reference-panel p {
+.reference-panel p,
+.agent-plan p,
+.action-row p {
   margin-top: 6px;
   color: #6b766f;
   line-height: 1.45;
@@ -227,6 +229,97 @@ textarea:focus {
   border-color: #efc8c5;
 }
 
+.agent-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.panel-heading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #21535a;
+}
+
+.panel-heading h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.query-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.query-list span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #304238;
+  background: #eef5ee;
+  border: 1px solid #d4e3d2;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.action-log {
+  display: grid;
+  gap: 8px;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e5ece3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.action-row strong {
+  color: #25342d;
+}
+
+.action-state,
+.action-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.action-state.done {
+  color: #285236;
+  background: #e6f4e9;
+}
+
+.action-state.failed {
+  color: #7c2626;
+  background: #ffe8e5;
+}
+
+.action-state.skipped {
+  color: #6d5b1d;
+  background: #fff4c7;
+}
+
+.action-count {
+  color: #21535a;
+  background: #edf6f7;
+}
+
 .results {
   display: grid;
   gap: 14px;
@@ -344,6 +437,10 @@ pre {
   .chat-header,
   .reference-panel {
     display: grid;
+  }
+
+  .action-row {
+    grid-template-columns: 1fr;
   }
 
   .status-pill,

@@ -1,5 +1,16 @@
 import type { Config, Context } from "@netlify/functions";
 import { XMLParser } from "fast-xml-parser";
+import OpenAI from "openai";
+
+declare const Netlify:
+  | {
+      env: {
+        get(key: string): string | undefined;
+      };
+    }
+  | undefined;
+
+type Source = "Semantic Scholar" | "arXiv" | "OpenAlex" | "Crossref";
 
 type Paper = {
   id: string;
@@ -11,8 +22,25 @@ type Paper = {
   doi?: string;
   pdfUrl?: string;
   sourceUrl?: string;
-  source: "Semantic Scholar" | "arXiv";
+  source: Source;
   reference: string;
+  score: number;
+};
+
+type ResearchPlan = {
+  intent: string;
+  concepts: string[];
+  queries: string[];
+  planSource: "ai" | "fallback";
+};
+
+type BrowseAction = {
+  manual: string;
+  target: Source | "Planner" | "Ranker";
+  query?: string;
+  status: "done" | "skipped" | "failed";
+  found: number;
+  note: string;
 };
 
 type SemanticPaper = {
@@ -25,11 +53,51 @@ type SemanticPaper = {
   authors?: Array<{ name?: string }>;
   externalIds?: { DOI?: string; ArXiv?: string };
   openAccessPdf?: { url?: string };
-  citationStyles?: { bibtex?: string };
+};
+
+type OpenAlexWork = {
+  id?: string;
+  doi?: string;
+  title?: string;
+  display_name?: string;
+  publication_year?: number;
+  primary_location?: {
+    landing_page_url?: string;
+    pdf_url?: string;
+    source?: { display_name?: string };
+  };
+  best_oa_location?: {
+    landing_page_url?: string;
+    pdf_url?: string;
+  };
+  authorships?: Array<{ author?: { display_name?: string } }>;
+  abstract_inverted_index?: Record<string, number[]>;
+};
+
+type CrossrefWork = {
+  DOI?: string;
+  URL?: string;
+  title?: string[];
+  author?: Array<{ given?: string; family?: string }>;
+  published?: { "date-parts"?: number[][] };
+  "container-title"?: string[];
+  link?: Array<{ URL?: string; "content-type"?: string }>;
+  abstract?: string;
 };
 
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
+};
+
+const SOURCE_MANUALS = {
+  semantic:
+    "Semantic Scholar action manual: call Graph API with title/authors/year/abstract/openAccessPdf only; never fetch result pages unless metadata is missing.",
+  arxiv:
+    "arXiv action manual: call Atom API with compact all:term queries; use returned pdf link and abstract summary; retry shorter high-signal queries.",
+  openalex:
+    "OpenAlex action manual: search OA works with is_oa=true; read primary_location and best_oa_location for PDF/landing URLs.",
+  crossref:
+    "Crossref action manual: query works metadata for DOI/reference details; use PDF links only when the metadata exposes them directly.",
 };
 
 export default async (req: Request, _context: Context) => {
@@ -49,29 +117,49 @@ export default async (req: Request, _context: Context) => {
     return json({ error: "Please describe the research topic in a little more detail." }, 400);
   }
 
-  const [semanticResult, arxivResult] = await Promise.allSettled([
-    searchSemanticScholar(query),
-    searchArxiv(query),
-  ]);
+  const actions: BrowseAction[] = [];
+  const plan = await buildResearchPlan(query);
+  actions.push({
+    manual: "ActionBook-style planning manual",
+    target: "Planner",
+    status: "done",
+    found: plan.queries.length,
+    note:
+      plan.planSource === "ai"
+        ? "AI planner converted the request into targeted scholarly search actions."
+        : "Fallback planner extracted compact search terms because AI Gateway/OpenAI env was unavailable.",
+  });
 
-  const semanticPapers = semanticResult.status === "fulfilled" ? semanticResult.value : [];
-  const arxivPapers = arxivResult.status === "fulfilled" ? arxivResult.value : [];
-  if (semanticResult.status === "rejected") console.error("Semantic Scholar search failed", semanticResult.reason);
-  if (arxivResult.status === "rejected") console.error("arXiv search failed", arxivResult.reason);
-  const papers = dedupe([...semanticPapers, ...arxivPapers])
+  const results = await Promise.allSettled(plan.queries.flatMap((plannedQuery) => browsePaperSources(plannedQuery)));
+  const papers = results.flatMap((result) => {
+    if (result.status === "rejected") return [];
+    actions.push(...result.value.actions);
+    return result.value.papers;
+  });
+
+  const ranked = rankAndDedupe(papers, plan.concepts)
     .filter((paper) => paper.pdfUrl)
-    .slice(0, 8);
-
-  const fallback = papers.length === 0 ? dedupe([...semanticPapers, ...arxivPapers]).slice(0, 8) : papers;
+    .slice(0, 10);
+  const fallback = ranked.length > 0 ? ranked : rankAndDedupe(papers, plan.concepts).slice(0, 10);
   const pdfCount = fallback.filter((paper) => paper.pdfUrl).length;
+
+  actions.push({
+    manual: "Ranking manual",
+    target: "Ranker",
+    status: "done",
+    found: fallback.length,
+    note: "Merged duplicate papers, preferred open PDFs, then ranked title and abstract matches.",
+  });
 
   return json({
     query,
+    plan,
+    actions,
     summary:
       fallback.length > 0
-        ? `Found ${fallback.length} candidate papers. ${pdfCount} include direct open-access PDF links.`
+        ? `Browsed ${plan.queries.length} targeted queries across paper sources and found ${fallback.length} papers. ${pdfCount} include direct PDF links.`
         : "No papers were found. Try a more specific method, domain, or phrase.",
-    papers: fallback,
+    papers: fallback.map(({ score, ...paper }) => paper),
   });
 };
 
@@ -79,13 +167,124 @@ export const config: Config = {
   path: "/api/search",
 };
 
+async function buildResearchPlan(query: string): Promise<ResearchPlan> {
+  const fallback = fallbackPlan(query);
+  const hasGateway = Boolean(readEnv("OPENAI_BASE_URL") || readEnv("OPENAI_API_KEY"));
+  if (!hasGateway) return fallback;
+
+  try {
+    const openai = new OpenAI({
+      apiKey: readEnv("OPENAI_API_KEY") || "netlify-ai-gateway",
+      baseURL: readEnv("OPENAI_BASE_URL"),
+    });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You plan token-efficient academic paper browsing. Return JSON only with intent, concepts, and queries. Use concise search phrases for scholarly APIs, not prose.",
+        },
+        {
+          role: "user",
+          content: `Researcher request: ${query}\nReturn {"intent": string, "concepts": string[], "queries": string[]} with 3-5 targeted queries.`,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(raw) as Partial<ResearchPlan>;
+    const queries = normalizeList(parsed.queries).slice(0, 5);
+    const concepts = uniqueTerms(`${normalizeList(parsed.concepts).join(" ")} ${query}`).slice(0, 12);
+    if (queries.length === 0 || concepts.length === 0) return fallback;
+
+    return {
+      intent: cleanText(parsed.intent || query),
+      concepts,
+      queries,
+      planSource: "ai",
+    };
+  } catch (error) {
+    console.error("AI planner failed", error);
+    return fallback;
+  }
+}
+
+function fallbackPlan(query: string): ResearchPlan {
+  const concepts = extractTerms(query).slice(0, 12);
+  const core = concepts.slice(0, 7).join(" ");
+  const methodTerms = concepts.filter((term) => METHOD_WORDS.has(term));
+  const domainTerms = concepts.filter((term) => !METHOD_WORDS.has(term) && !GENERIC_DOMAIN_WORDS.has(term));
+  const queries = [
+    core,
+    [...methodTerms, ...domainTerms.slice(0, 5)].join(" "),
+    domainTerms.slice(0, 7).join(" "),
+    concepts.slice(0, 4).join(" "),
+  ].filter(Boolean);
+
+  return {
+    intent: query,
+    concepts,
+    queries: [...new Set(queries)].slice(0, 4),
+    planSource: "fallback",
+  };
+}
+
+async function browsePaperSources(query: string): Promise<{ actions: BrowseAction[]; papers: Paper[] }> {
+  const searches: Array<[Source, string, (query: string) => Promise<Paper[]>]> = [
+    ["Semantic Scholar", SOURCE_MANUALS.semantic, searchSemanticScholar],
+    ["arXiv", SOURCE_MANUALS.arxiv, searchArxiv],
+    ["OpenAlex", SOURCE_MANUALS.openalex, searchOpenAlex],
+    ["Crossref", SOURCE_MANUALS.crossref, searchCrossref],
+  ];
+
+  const settled = await Promise.allSettled(
+    searches.map(async ([source, manual, search]) => {
+      const papers = await search(query);
+      return {
+        papers,
+        action: {
+          manual,
+          target: source,
+          query,
+          status: "done" as const,
+          found: papers.length,
+          note: `Browsed ${source} through a compact metadata endpoint.`,
+        },
+      };
+    }),
+  );
+
+  const actions: BrowseAction[] = [];
+  const papers: Paper[] = [];
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      papers.push(...result.value.papers);
+      actions.push(result.value.action);
+      return;
+    }
+    actions.push({
+      manual: searches[index][1],
+      target: searches[index][0],
+      query,
+      status: "failed",
+      found: 0,
+      note: "Source request failed; continued with other paper sources.",
+    });
+  });
+
+  return { actions, papers };
+}
+
 async function searchSemanticScholar(query: string): Promise<Paper[]> {
   const params = new URLSearchParams({
     query,
     limit: "8",
-    fields: "title,authors,year,abstract,url,venue,externalIds,openAccessPdf,citationStyles",
+    fields: "title,authors,year,abstract,url,venue,externalIds,openAccessPdf",
   });
-  const response = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?${params}`, {
+  const response = await fetchWithTimeout(`https://api.semanticscholar.org/graph/v1/paper/search?${params}`, {
     headers: { Accept: "application/json" },
   });
 
@@ -108,6 +307,7 @@ async function searchSemanticScholar(query: string): Promise<Paper[]> {
       sourceUrl: item.url || doiUrl(doi),
       source: "Semantic Scholar",
       reference: "",
+      score: 0,
     };
     paper.reference = formatApa(paper);
     return paper;
@@ -115,20 +315,13 @@ async function searchSemanticScholar(query: string): Promise<Paper[]> {
 }
 
 async function searchArxiv(query: string): Promise<Paper[]> {
-  const terms = query
-    .toLowerCase()
-    .split(/\s+/)
-    .map((word) => word.replace(/[^a-z0-9.-]/g, ""))
-    .filter(Boolean)
-    .filter((word) => !STOP_WORDS.has(word))
-    .slice(0, 10);
-
+  const terms = extractTerms(query).slice(0, 10);
   const variants = [terms, terms.slice(0, 6), terms.slice(0, 4)]
     .filter((variant) => variant.length > 0)
     .map((variant) => variant.map((word) => `all:${encodeURIComponent(word)}`).join("+AND+"));
 
   for (const search of variants) {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://export.arxiv.org/api/query?search_query=${search}&start=0&max_results=8&sortBy=relevance&sortOrder=descending`,
       { headers: { Accept: "application/atom+xml" } },
     );
@@ -163,6 +356,7 @@ async function searchArxiv(query: string): Promise<Paper[]> {
           sourceUrl: entry.id,
           source: "arXiv",
           reference: "",
+          score: 0,
         };
         paper.reference = formatApa(paper);
         return paper;
@@ -173,7 +367,79 @@ async function searchArxiv(query: string): Promise<Paper[]> {
   return [];
 }
 
-function dedupe(papers: Paper[]) {
+async function searchOpenAlex(query: string): Promise<Paper[]> {
+  const params = new URLSearchParams({
+    search: query,
+    filter: "is_oa:true",
+    "per-page": "8",
+    sort: "relevance_score:desc",
+  });
+  const response = await fetchWithTimeout(`https://api.openalex.org/works?${params}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { results?: OpenAlexWork[] };
+
+  return (payload.results || []).map((work) => {
+    const doi = work.doi?.replace(/^https:\/\/doi.org\//, "");
+    const authors = cleanAuthors(work.authorships?.map((item) => item.author?.display_name || "") || []);
+    const paper: Paper = {
+      id: work.id || work.doi || work.title || crypto.randomUUID(),
+      title: cleanText(work.title || work.display_name || "Untitled OpenAlex work"),
+      authors,
+      year: work.publication_year,
+      venue: work.primary_location?.source?.display_name,
+      abstract: truncate(invertedAbstract(work.abstract_inverted_index), 720),
+      doi,
+      pdfUrl: work.primary_location?.pdf_url || work.best_oa_location?.pdf_url,
+      sourceUrl: work.primary_location?.landing_page_url || work.best_oa_location?.landing_page_url || work.id,
+      source: "OpenAlex",
+      reference: "",
+      score: 0,
+    };
+    paper.reference = formatApa(paper);
+    return paper;
+  });
+}
+
+async function searchCrossref(query: string): Promise<Paper[]> {
+  const params = new URLSearchParams({
+    query,
+    rows: "8",
+    filter: "type:journal-article",
+    sort: "relevance",
+  });
+  const response = await fetchWithTimeout(`https://api.crossref.org/works?${params}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { message?: { items?: CrossrefWork[] } };
+
+  return (payload.message?.items || []).map((work) => {
+    const authors = cleanAuthors(work.author?.map((author) => `${author.given || ""} ${author.family || ""}`) || []);
+    const pdfUrl = work.link?.find((link) => link["content-type"]?.includes("pdf"))?.URL;
+    const paper: Paper = {
+      id: work.DOI || work.URL || work.title?.[0] || crypto.randomUUID(),
+      title: cleanText(work.title?.[0] || "Untitled Crossref work"),
+      authors,
+      year: work.published?.["date-parts"]?.[0]?.[0],
+      venue: work["container-title"]?.[0],
+      abstract: truncate(stripHtml(cleanText(work.abstract || "")), 720),
+      doi: work.DOI,
+      pdfUrl,
+      sourceUrl: work.URL || doiUrl(work.DOI),
+      source: "Crossref",
+      reference: "",
+      score: 0,
+    };
+    paper.reference = formatApa(paper);
+    return paper;
+  });
+}
+
+function rankAndDedupe(papers: Paper[], concepts: string[]) {
   const seen = new Set<string>();
   const unique: Paper[] = [];
 
@@ -181,10 +447,62 @@ function dedupe(papers: Paper[]) {
     const key = (paper.doi || paper.title).toLowerCase().replace(/\W+/g, "");
     if (!key || seen.has(key)) continue;
     seen.add(key);
+    paper.score = scorePaper(paper, concepts);
     unique.push(paper);
   }
 
-  return unique;
+  const domainTerms = concepts.filter((term) => !METHOD_WORDS.has(term) && !GENERIC_DOMAIN_WORDS.has(term));
+  const minimumDomainMatches = Math.min(2, domainTerms.length);
+  const relevant =
+    minimumDomainMatches > 0
+      ? unique.filter((paper) => countMatches(`${paper.title} ${paper.abstract || ""}`, domainTerms) >= minimumDomainMatches)
+      : unique;
+
+  return (relevant.length > 0 ? relevant : unique).sort((a, b) => b.score - a.score);
+}
+
+function scorePaper(paper: Paper, concepts: string[]) {
+  const title = paper.title.toLowerCase();
+  const abstract = (paper.abstract || "").toLowerCase();
+  const venue = (paper.venue || "").toLowerCase();
+  const haystack = `${title} ${abstract} ${venue}`;
+  const matchScore = concepts.reduce((score, concept) => {
+    const term = concept.toLowerCase();
+    if (title.includes(term)) return score + 8;
+    if (abstract.includes(term)) return score + 3;
+    if (venue.includes(term)) return score + 2;
+    return score;
+  }, 0);
+  const domainTerms = concepts.filter((term) => !METHOD_WORDS.has(term) && !GENERIC_DOMAIN_WORDS.has(term));
+  const domainTitleScore = domainTerms.filter((term) => title.includes(term)).length * 6;
+  const domainCoverageScore = domainTerms.length > 0 && domainTerms.every((term) => haystack.includes(term)) ? 14 : 0;
+  const pdfScore = paper.pdfUrl ? 20 : 0;
+  const recencyScore = paper.year ? Math.max(0, Math.min(8, paper.year - 2018)) : 0;
+  return matchScore + domainTitleScore + domainCoverageScore + pdfScore + recencyScore;
+}
+
+function normalizeList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => cleanText(String(item))).filter(Boolean);
+}
+
+function uniqueTerms(value: string) {
+  return [...new Set(extractTerms(value))];
+}
+
+function extractTerms(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-z0-9-]/g, ""))
+    .filter(Boolean)
+    .filter((word) => word.length > 2)
+    .filter((word) => !STOP_WORDS.has(word));
+}
+
+function countMatches(value: string, terms: string[]) {
+  const haystack = value.toLowerCase();
+  return terms.filter((term) => haystack.includes(term.toLowerCase())).length;
 }
 
 function cleanAuthors(authors: string[]) {
@@ -214,6 +532,16 @@ function formatAuthors(authors: string[]) {
   return `${formatted.slice(0, -1).join(", ")}, & ${formatted.at(-1)}.`;
 }
 
+function invertedAbstract(index?: Record<string, number[]>) {
+  if (!index) return "";
+  const words: Array<[string, number]> = [];
+  Object.entries(index).forEach(([word, positions]) => positions.forEach((position) => words.push([word, position])));
+  return words
+    .sort((a, b) => a[1] - b[1])
+    .map(([word]) => word)
+    .join(" ");
+}
+
 function arxivPdfFromId(id?: string) {
   return id ? `https://arxiv.org/pdf/${id}` : undefined;
 }
@@ -226,9 +554,31 @@ function cleanText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function stripHtml(value: string) {
+  return value.replace(/<[^>]*>/g, "");
+}
+
 function truncate(value: string, maxLength: number) {
   if (!value || value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1).trim()}...`;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 9000) {
+  const controller = new AbortController();
+  const timeout = windowlessSetTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function windowlessSetTimeout(callback: () => void, timeoutMs: number) {
+  return setTimeout(callback, timeoutMs);
+}
+
+function readEnv(key: string) {
+  return typeof Netlify !== "undefined" ? Netlify?.env.get(key) : undefined;
 }
 
 function json(payload: unknown, status = 200) {
@@ -238,31 +588,63 @@ function json(payload: unknown, status = 200) {
   });
 }
 
+const METHOD_WORDS = new Set([
+  "algorithm",
+  "algorithms",
+  "analysis",
+  "approach",
+  "applying",
+  "deep",
+  "evaluation",
+  "classification",
+  "data",
+  "learning",
+  "machine",
+  "model",
+  "models",
+  "neural",
+  "prediction",
+  "retrieval",
+  "survey",
+  "technique",
+  "techniques",
+]);
+
+const GENERIC_DOMAIN_WORDS = new Set(["system", "systems"]);
+
 const STOP_WORDS = new Set([
-  "a",
-  "an",
+  "about",
+  "academic",
+  "also",
   "and",
+  "any",
   "apply",
   "can",
+  "discover",
+  "find",
   "for",
+  "give",
+  "help",
   "how",
-  "in",
   "into",
-  "of",
-  "on",
-  "or",
+  "need",
   "paper",
   "papers",
+  "please",
   "reference",
   "references",
   "research",
   "researcher",
+  "should",
   "that",
   "the",
   "their",
-  "to",
-  "using",
+  "them",
+  "these",
+  "this",
   "want",
-  "we",
+  "web",
+  "webpage",
+  "websites",
   "with",
 ]);
