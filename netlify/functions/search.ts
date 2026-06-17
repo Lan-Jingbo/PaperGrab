@@ -10,7 +10,7 @@ declare const Netlify:
     }
   | undefined;
 
-type Source = "Semantic Scholar" | "arXiv" | "OpenAlex" | "Crossref";
+type Source = "Semantic Scholar" | "arXiv" | "OpenAlex" | "Crossref" | "Google Scholar";
 
 type Paper = {
   id: string;
@@ -106,6 +106,29 @@ type CrossrefWork = {
   abstract?: string;
 };
 
+type GoogleScholarResult = {
+  title?: string;
+  link?: string;
+  snippet?: string;
+  publication_info?: {
+    summary?: string;
+    authors?: Array<{ name?: string }>;
+  };
+  resources?: Array<{
+    title?: string;
+    file_format?: string;
+    link?: string;
+  }>;
+};
+
+type SourceSearch = {
+  source: Source;
+  manual: string;
+  search: (query: string) => Promise<Paper[]>;
+  enabled?: () => boolean;
+  skippedNote?: string;
+};
+
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -119,6 +142,8 @@ const SOURCE_MANUALS = {
     "OpenAlex action manual: search OA works with is_oa=true; read primary_location and best_oa_location for PDF/landing URLs.",
   crossref:
     "Crossref action manual: query works metadata for DOI/reference details; use PDF links only when the metadata exposes them directly.",
+  scholar:
+    "Google Scholar action manual: use a compact JSON proxy only when SERPAPI_API_KEY is configured; never scrape Scholar HTML pages.",
 };
 
 export default async (req: Request, _context: Context) => {
@@ -361,15 +386,36 @@ function hasUsefulAdvice(advice: ResearchAdvice) {
 }
 
 async function browsePaperSources(query: string): Promise<{ actions: BrowseAction[]; papers: Paper[] }> {
-  const searches: Array<[Source, string, (query: string) => Promise<Paper[]>]> = [
-    ["Semantic Scholar", SOURCE_MANUALS.semantic, searchSemanticScholar],
-    ["arXiv", SOURCE_MANUALS.arxiv, searchArxiv],
-    ["OpenAlex", SOURCE_MANUALS.openalex, searchOpenAlex],
-    ["Crossref", SOURCE_MANUALS.crossref, searchCrossref],
+  const searches: SourceSearch[] = [
+    { source: "Semantic Scholar", manual: SOURCE_MANUALS.semantic, search: searchSemanticScholar },
+    { source: "arXiv", manual: SOURCE_MANUALS.arxiv, search: searchArxiv },
+    { source: "OpenAlex", manual: SOURCE_MANUALS.openalex, search: searchOpenAlex },
+    { source: "Crossref", manual: SOURCE_MANUALS.crossref, search: searchCrossref },
+    {
+      source: "Google Scholar",
+      manual: SOURCE_MANUALS.scholar,
+      search: searchGoogleScholar,
+      enabled: hasGoogleScholarProvider,
+      skippedNote: "Google Scholar skipped because SERPAPI_API_KEY is not configured; avoided direct Scholar scraping to save tokens.",
+    },
   ];
 
   const settled = await Promise.allSettled(
-    searches.map(async ([source, manual, search]) => {
+    searches.map(async ({ source, manual, search, enabled, skippedNote }) => {
+      if (enabled && !enabled()) {
+        return {
+          papers: [],
+          action: {
+            manual,
+            target: source,
+            query,
+            status: "skipped" as const,
+            found: 0,
+            note: skippedNote || "Source skipped because required configuration is unavailable.",
+          },
+        };
+      }
+
       const papers = await search(query);
       return {
         papers,
@@ -394,8 +440,8 @@ async function browsePaperSources(query: string): Promise<{ actions: BrowseActio
       return;
     }
     actions.push({
-      manual: searches[index][1],
-      target: searches[index][0],
+      manual: searches[index].manual,
+      target: searches[index].source,
       query,
       status: "failed",
       found: 0,
@@ -567,6 +613,46 @@ async function searchCrossref(query: string): Promise<Paper[]> {
   });
 }
 
+async function searchGoogleScholar(query: string): Promise<Paper[]> {
+  const apiKey = readEnv("SERPAPI_API_KEY") || readEnv("SERP_API_KEY");
+  if (!apiKey) return [];
+
+  const params = new URLSearchParams({
+    engine: "google_scholar",
+    q: query,
+    num: "8",
+    api_key: apiKey,
+  });
+  const response = await fetchWithTimeout(`https://serpapi.com/search.json?${params}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { organic_results?: GoogleScholarResult[] };
+
+  return (payload.organic_results || []).map((item) => {
+    const authors = cleanAuthors(
+      item.publication_info?.authors?.map((author) => author.name || "") || extractScholarAuthors(item.publication_info?.summary),
+    );
+    const pdfUrl = scholarPdfUrl(item.resources);
+    const paper: Paper = {
+      id: item.link || item.title || crypto.randomUUID(),
+      title: cleanText(item.title || "Untitled Google Scholar result"),
+      authors,
+      year: extractYear(item.publication_info?.summary || ""),
+      venue: scholarVenue(item.publication_info?.summary),
+      abstract: truncate(cleanText(item.snippet || ""), 640),
+      pdfUrl,
+      sourceUrl: item.link || pdfUrl,
+      source: "Google Scholar",
+      reference: "",
+      score: 0,
+    };
+    paper.reference = formatApa(paper);
+    return paper;
+  });
+}
+
 function rankAndDedupe(papers: Paper[], concepts: string[]) {
   const seen = new Set<string>();
   const unique: Paper[] = [];
@@ -729,6 +815,36 @@ function shouldRetryWithPartialGet(status: number) {
 
 function hasOriginUnreachableSignal(value: string) {
   return /error code\s*523|origin is unreachable/i.test(value);
+}
+
+function hasGoogleScholarProvider() {
+  return Boolean(readEnv("SERPAPI_API_KEY") || readEnv("SERP_API_KEY"));
+}
+
+function scholarPdfUrl(resources?: GoogleScholarResult["resources"]) {
+  return resources?.find((resource) => {
+    const label = `${resource.title || ""} ${resource.file_format || ""}`.toLowerCase();
+    return Boolean(resource.link && label.includes("pdf"));
+  })?.link;
+}
+
+function extractScholarAuthors(summary?: string) {
+  const authorBlock = summary?.split(" - ")[0] || "";
+  return authorBlock
+    .split(/,\s*| and /)
+    .map((author) => author.replace(/\u2026|\.{3}/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function scholarVenue(summary?: string) {
+  const parts = (summary || "").split(" - ").map(cleanText).filter(Boolean);
+  return parts.length > 1 ? parts[1].replace(/\b(19|20)\d{2}\b/g, "").replace(/,+/g, ",").trim() : undefined;
+}
+
+function extractYear(value: string) {
+  const match = value.match(/\b(19|20)\d{2}\b/);
+  return match ? Number(match[0]) : undefined;
 }
 
 function normalizeList(value: unknown) {

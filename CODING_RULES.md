@@ -20,6 +20,7 @@ Use these rules to save tokens and keep the project maintainable.
 
 - Keep Netlify Functions in modern default-export style.
 - Use structured scholarly APIs before webpage scraping.
+- Do not scrape Google Scholar HTML. Use the optional SerpAPI Google Scholar JSON source only when an API key is configured.
 - Add bounded timeouts to external requests.
 - Keep URL availability checks lightweight: HEAD first, partial GET only when needed, and skip only clear 523 / origin-unreachable signals.
 - Return compact JSON: papers, plan, actions, researchAdvice, summary.
