@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  --editor-font:
+    "Editor", "Instagram Sans", "Instagram Sans Headline", "Editorial New",
+    Georgia, "Times New Roman", serif;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -14,6 +17,7 @@
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
 }
 
 button,
@@ -27,40 +31,17 @@ button {
 }
 
 .app-shell {
-  width: min(920px, calc(100% - 32px));
+  width: calc(100% - 32px);
+  max-width: 920px;
   margin: 0 auto;
-  padding: 48px 0 72px;
+  padding: 82px 0 72px;
 }
 
 .hero {
   display: grid;
-  gap: 14px;
-  padding: 18px 0 8px;
-}
-
-.brand-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #31363d;
-  font-weight: 750;
-}
-
-.brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #d8d9d2;
-  border-radius: 8px;
-  background: #ffffff;
-  overflow: hidden;
-}
-
-.brand-mark img {
-  width: 100%;
-  height: 100%;
-  display: block;
+  justify-items: center;
+  padding: 18px 0 12px;
+  text-align: center;
 }
 
 h1,
@@ -71,11 +52,17 @@ p {
 }
 
 .hero h1 {
-  max-width: 760px;
-  font-size: clamp(34px, 6vw, 58px);
-  line-height: 1.03;
-  font-weight: 760;
+  width: 100%;
+  max-width: 820px;
+  font-family: var(--editor-font);
+  font-size: 54px;
+  line-height: 1.08;
+  font-weight: 540;
   letter-spacing: 0;
+}
+
+.hero h1 span {
+  display: block;
 }
 
 .hero p,
@@ -88,15 +75,12 @@ p {
   line-height: 1.55;
 }
 
-.hero p {
-  max-width: 650px;
-  font-size: 18px;
-}
-
 .composer {
   display: grid;
   gap: 12px;
-  margin-top: 24px;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 28px;
   padding: 10px;
   border: 1px solid #dedfd8;
   border-radius: 8px;
@@ -104,17 +88,100 @@ p {
   box-shadow: 0 16px 50px rgba(31, 35, 40, 0.08);
 }
 
+.composer-input {
+  position: relative;
+  min-height: 170px;
+}
+
 textarea {
   width: 100%;
-  min-height: 118px;
-  resize: vertical;
-  padding: 12px;
+  min-height: 170px;
+  resize: none;
+  padding: 22px 18px 18px 64px;
   border: 0;
   outline: 0;
   color: #1f2328;
   background: transparent;
   line-height: 1.55;
   font-size: 16px;
+}
+
+.composer-cat {
+  position: absolute;
+  top: 15px;
+  left: 16px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  image-rendering: pixelated;
+}
+
+.typing-placeholder {
+  position: absolute;
+  top: 22px;
+  left: 64px;
+  right: 18px;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  color: #9aa0a6;
+  line-height: 1.55;
+  font-size: 16px;
+}
+
+.typing-placeholder span {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1px solid #9aa0a6;
+  animation:
+    typePlaceholder 2.5s steps(35, end) 0.2s forwards,
+    placeholderCaret 0.8s steps(1, end) infinite;
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.composer.is-loading .composer-footer {
+  justify-content: space-between;
+}
+
+.working-indicator {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+  color: #4f5963;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.working-indicator .pixel-cat {
+  width: 32px;
+  height: 32px;
+  animation: workingCatBounce 0.72s steps(2, end) infinite;
+}
+
+.pixel-cat .pixel-cat-paw {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pixel-cat.working .pixel-cat-paw.left {
+  animation: leftPawWork 0.5s steps(2, end) infinite;
+}
+
+.pixel-cat.working .pixel-cat-paw.right {
+  animation: rightPawWork 0.5s steps(2, end) infinite;
+}
+
+.pixel-cat.working .pixel-paper {
+  animation: paperBlink 0.7s steps(2, end) infinite;
 }
 
 .composer button,
@@ -135,7 +202,7 @@ textarea {
 }
 
 .composer button {
-  justify-self: end;
+  flex: 0 0 auto;
 }
 
 .composer button:disabled {
@@ -150,6 +217,42 @@ textarea {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes typePlaceholder {
+  to {
+    max-width: 35ch;
+  }
+}
+
+@keyframes placeholderCaret {
+  50% {
+    border-color: transparent;
+  }
+}
+
+@keyframes workingCatBounce {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes leftPawWork {
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+@keyframes rightPawWork {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes paperBlink {
+  50% {
+    fill: #1f5c61;
   }
 }
 
@@ -169,6 +272,9 @@ textarea {
   background: #ffffff;
   color: #3c434a;
   font-size: 14px;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
 }
 
 .prompt-strip button:hover {
@@ -393,12 +499,35 @@ textarea {
 
 @media (max-width: 720px) {
   .app-shell {
-    width: min(100% - 24px, 920px);
-    padding-top: 28px;
+    width: calc(100% - 48px);
+    max-width: 920px;
+    padding-top: 46px;
+  }
+
+  .hero h1 {
+    max-width: 300px;
+    font-size: 22px;
+    overflow-wrap: break-word;
+  }
+
+  .prompt-strip button {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .composer button {
-    justify-self: stretch;
+    width: 100%;
+  }
+
+  .working-indicator {
+    justify-content: center;
   }
 
   .advice-grid,

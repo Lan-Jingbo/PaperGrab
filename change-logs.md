@@ -4,6 +4,18 @@ This file records project changes for Lan-Jingbo and future coding agents. Read 
 
 ## 2026-06-18
 
+### Simplify Start UI With Pixel Tabby Cat
+
+- Removed the old brand row, large headline, and supporting paragraph from the start screen.
+- Replaced the start headline with `Where you want to start for your research` using an Editor/Instagram-style font stack.
+- Added a Super Mario-style 8-bit tabby cat in the top-left of the input box.
+- Added a simple working tabby animation while papers are being browsed.
+- Reduced example prompts to one prompt only.
+- Removed the textarea resize corner and changed the empty input hint to `Let me know what you are finding,` with a left-to-right typing effect.
+- Tightened mobile spacing and guarded against horizontal overflow.
+
+Commit: included in `Simplify start UI with pixel tabby`
+
 ### Add Cat-Inspired Product Logo
 
 - Added `public/papergrab-logo.svg`, inspired by the user's reference cat.

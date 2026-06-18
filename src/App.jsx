@@ -8,7 +8,7 @@ import { ResearchPlan } from "./components/ResearchPlan.jsx";
 import { ReferenceList } from "./components/ReferenceList.jsx";
 
 function App() {
-  const [query, setQuery] = React.useState(starterPrompts[0]);
+  const [query, setQuery] = React.useState("");
   const [papers, setPapers] = React.useState([]);
   const [plan, setPlan] = React.useState(null);
   const [actions, setActions] = React.useState([]);
@@ -47,14 +47,10 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero" aria-label="PaperGrab intro">
-        <div className="brand-row">
-          <span className="brand-mark">
-            <img src="/papergrab-logo.svg" alt="" />
-          </span>
-          <span>PaperGrab</span>
-        </div>
-        <h1>Tell me your research topic. I will find papers first.</h1>
-        <p>Browse open paper sources, return PDF links, suggest a research direction, and format references.</p>
+        <h1>
+          <span>Where you want to start</span>
+          <span>for your research</span>
+        </h1>
       </section>
 
       <SearchComposer query={query} setQuery={setQuery} loading={loading} onSubmit={handleSearch} />
