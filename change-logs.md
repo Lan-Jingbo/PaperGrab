@@ -4,6 +4,13 @@ This file records project changes for Lan-Jingbo and future coding agents. Read 
 
 ## UI
 
+### Rename Browser Tab To aCATamic
+
+- Changed the browser title from `PaperGrab` to `aCATamic`.
+- Added a PNG favicon fallback so browser tabs use the cat logo instead of a default Netlify icon.
+
+Commit: included in `Use aCATamic browser title and cat favicon`
+
 ### aCATamic Brand, Keyboard Submit, Collapsible Results
 
 - Added the visible product name `aCATamic` with the 8-bit tabby cat in the upper-left brand row.

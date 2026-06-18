@@ -51,7 +51,7 @@ function App() {
         <span>aCATamic</span>
       </header>
 
-      <section className="hero" aria-label="PaperGrab intro">
+      <section className="hero" aria-label="aCATamic intro">
         <h1>
           <span>Where you want to start</span>
           <span>for your research</span>
