@@ -2,7 +2,18 @@
 
 This file records project changes for Lan-Jingbo and future coding agents. Read it after `PROJECT_CONTEXT.md` when you need a quick history of what changed and why.
 
-## 2026-06-18
+## UI
+
+### aCATamic Brand, Keyboard Submit, Collapsible Results
+
+- Added the visible product name `aCATamic` with the 8-bit tabby cat in the upper-left brand row.
+- Added ChatGPT-style composer behavior: `Enter` submits and `Shift+Enter` inserts a new line.
+- Changed PDF papers into a collapsible section that starts open.
+- Changed Research plan into a collapsible section that starts closed.
+- Removed the combined reference list from the main result flow.
+- Added an APA reference block and `Copy reference` button to each paper card.
+
+Commit: included in `Add aCATamic UI and university source`
 
 ### Simplify Start UI With Pixel Tabby Cat
 
@@ -25,6 +36,34 @@ Commit: included in `Simplify start UI with pixel tabby`
 
 Commit: `99122e0 Add cat-inspired product logo`
 
+### Refine Research UI And Project Structure
+
+- Simplified the interface toward a ChatGPT/Manus-style layout.
+- Reordered result sections so PDFs appear first, then research plan/advice, then reference list.
+- Split app code out of `main.jsx` into `App.jsx`, `src/components/`, and `src/api/`.
+- Added `PROJECT_CONTEXT.md` and `CODING_RULES.md` to reduce future context/token usage.
+
+Commit: `4ad9f09 Refine research UI and project structure`
+
+### Build Initial PaperGrab React App
+
+- Created the first React/Vite PaperGrab app.
+- Added the initial chat-style research topic input.
+- Added paper result display and reference formatting workflow.
+
+Commit: `981ea7d Build PaperGrab React app`
+
+## System
+
+### Add University Sites And Paper-Finding Skill
+
+- Added `University Sites` as an optional source through SerpAPI Google JSON.
+- University search targets compact `site:.edu`, `site:.ac.uk`, and `site:edu.cn` queries without crawling university sites.
+- Added `skills/skill.md` to document the paper-finding workflow for future agents and later discipline-specific skills.
+- Updated project context for the `aCATamic` display name, per-paper references, and University Sites source.
+
+Commit: included in `Add aCATamic UI and university source`
+
 ### Add Optional Google Scholar Source
 
 - Added Google Scholar as an optional backend source through SerpAPI JSON.
@@ -43,15 +82,6 @@ Commit: `bcb1c3e Add optional Google Scholar source`
 
 Commit: `3fc4b9b Skip unreachable PDF links`
 
-### Refine Research UI And Project Structure
-
-- Simplified the interface toward a ChatGPT/Manus-style layout.
-- Reordered result sections so PDFs appear first, then research plan/advice, then reference list.
-- Split app code out of `main.jsx` into `App.jsx`, `src/components/`, and `src/api/`.
-- Added `PROJECT_CONTEXT.md` and `CODING_RULES.md` to reduce future context/token usage.
-
-Commit: `4ad9f09 Refine research UI and project structure`
-
 ### Add AI-Driven Paper Browsing
 
 - Replaced prepared sample papers with AI-driven search planning and source browsing.
@@ -60,14 +90,6 @@ Commit: `4ad9f09 Refine research UI and project structure`
 - Added ranked paper results, PDF links, APA references, and research advice.
 
 Commit: `ba039f0 Add AI-driven paper browsing`
-
-### Build Initial PaperGrab React App
-
-- Created the first React/Vite PaperGrab app.
-- Added the initial chat-style research topic input.
-- Added paper result display and reference formatting workflow.
-
-Commit: `981ea7d Build PaperGrab React app`
 
 ## Repository Notes
 

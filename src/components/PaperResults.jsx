@@ -1,17 +1,29 @@
-import { Download, ExternalLink } from "lucide-react";
+import React from "react";
+import { Clipboard, Download, ExternalLink } from "lucide-react";
 
 export function PaperResults({ papers }) {
+  const [copiedId, setCopiedId] = React.useState("");
+
+  async function copyReference(paper) {
+    if (!paper.reference) return;
+    await navigator.clipboard.writeText(paper.reference);
+    setCopiedId(paper.id);
+    window.setTimeout(() => setCopiedId(""), 1600);
+  }
+
   if (!papers.length) return null;
 
   return (
-    <section className="section-block" aria-label="PDF papers">
-      <div className="section-heading">
-        <span>1</span>
-        <div>
-          <h2>PDF papers</h2>
-          <p>Open the PDF first, then inspect the source page if needed.</p>
+    <details className="section-block collapsible-section" aria-label="PDF papers" open>
+      <summary className="section-summary">
+        <div className="section-heading">
+          <span>1</span>
+          <div>
+            <h2>PDF papers</h2>
+            <p>Open the PDF first, then inspect the source page if needed.</p>
+          </div>
         </div>
-      </div>
+      </summary>
 
       <div className="paper-list">
         {papers.map((paper) => (
@@ -36,10 +48,17 @@ export function PaperResults({ papers }) {
                   <span>Source</span>
                 </a>
               )}
+              {paper.reference && (
+                <button className="ghost-button" type="button" onClick={() => copyReference(paper)}>
+                  <Clipboard size={17} aria-hidden="true" />
+                  <span>{copiedId === paper.id ? "Copied" : "Copy reference"}</span>
+                </button>
+              )}
             </div>
+            {paper.reference && <pre className="paper-reference">{paper.reference}</pre>}
           </article>
         ))}
       </div>
-    </section>
+    </details>
   );
 }

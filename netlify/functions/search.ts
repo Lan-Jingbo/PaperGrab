@@ -10,7 +10,7 @@ declare const Netlify:
     }
   | undefined;
 
-type Source = "Semantic Scholar" | "arXiv" | "OpenAlex" | "Crossref" | "Google Scholar";
+type Source = "Semantic Scholar" | "arXiv" | "OpenAlex" | "Crossref" | "Google Scholar" | "University Sites";
 
 type Paper = {
   id: string;
@@ -121,6 +121,13 @@ type GoogleScholarResult = {
   }>;
 };
 
+type GoogleSearchResult = {
+  title?: string;
+  link?: string;
+  snippet?: string;
+  displayed_link?: string;
+};
+
 type SourceSearch = {
   source: Source;
   manual: string;
@@ -144,6 +151,8 @@ const SOURCE_MANUALS = {
     "Crossref action manual: query works metadata for DOI/reference details; use PDF links only when the metadata exposes them directly.",
   scholar:
     "Google Scholar action manual: use a compact JSON proxy only when SERPAPI_API_KEY is configured; never scrape Scholar HTML pages.",
+  university:
+    "University Sites action manual: use SerpAPI Google JSON for compact site:.edu/site:.ac.uk/site:edu.cn searches; never crawl university websites directly.",
 };
 
 export default async (req: Request, _context: Context) => {
@@ -397,6 +406,13 @@ async function browsePaperSources(query: string): Promise<{ actions: BrowseActio
       search: searchGoogleScholar,
       enabled: hasGoogleScholarProvider,
       skippedNote: "Google Scholar skipped because SERPAPI_API_KEY is not configured; avoided direct Scholar scraping to save tokens.",
+    },
+    {
+      source: "University Sites",
+      manual: SOURCE_MANUALS.university,
+      search: searchUniversitySites,
+      enabled: hasGoogleScholarProvider,
+      skippedNote: "University Sites skipped because SERPAPI_API_KEY is not configured; avoided direct university-site crawling.",
     },
   ];
 
@@ -653,6 +669,45 @@ async function searchGoogleScholar(query: string): Promise<Paper[]> {
   });
 }
 
+async function searchUniversitySites(query: string): Promise<Paper[]> {
+  const apiKey = readEnv("SERPAPI_API_KEY") || readEnv("SERP_API_KEY");
+  if (!apiKey) return [];
+
+  const universityQuery = `${query} (site:.edu OR site:.ac.uk OR site:edu.cn) (pdf OR "research paper" OR publication)`;
+  const params = new URLSearchParams({
+    engine: "google",
+    q: universityQuery,
+    num: "8",
+    api_key: apiKey,
+  });
+  const response = await fetchWithTimeout(`https://serpapi.com/search.json?${params}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { organic_results?: GoogleSearchResult[] };
+
+  return (payload.organic_results || [])
+    .filter((item) => item.link && looksLikeAcademicUrl(item.link))
+    .map((item) => {
+      const paper: Paper = {
+        id: item.link || item.title || crypto.randomUUID(),
+        title: cleanText(item.title || "Untitled university site result"),
+        authors: ["Unknown author"],
+        year: extractYear(`${item.title || ""} ${item.snippet || ""}`),
+        venue: universityVenue(item.link, item.displayed_link),
+        abstract: truncate(cleanText(item.snippet || ""), 640),
+        pdfUrl: looksLikePdfUrl(item.link) ? item.link : undefined,
+        sourceUrl: item.link,
+        source: "University Sites",
+        reference: "",
+        score: 0,
+      };
+      paper.reference = formatApa(paper);
+      return paper;
+    });
+}
+
 function rankAndDedupe(papers: Paper[], concepts: string[]) {
   const seen = new Set<string>();
   const unique: Paper[] = [];
@@ -840,6 +895,26 @@ function extractScholarAuthors(summary?: string) {
 function scholarVenue(summary?: string) {
   const parts = (summary || "").split(" - ").map(cleanText).filter(Boolean);
   return parts.length > 1 ? parts[1].replace(/\b(19|20)\d{2}\b/g, "").replace(/,+/g, ",").trim() : undefined;
+}
+
+function looksLikeAcademicUrl(value?: string) {
+  if (!value) return false;
+  return /\.edu\b|\.edu\/|\.ac\.uk\b|\.ac\.uk\/|edu\.cn\b|edu\.cn\//i.test(value);
+}
+
+function looksLikePdfUrl(value?: string) {
+  if (!value) return false;
+  return /\.pdf($|[?#])/i.test(value);
+}
+
+function universityVenue(link?: string, displayedLink?: string) {
+  const value = link || displayedLink;
+  if (!value) return undefined;
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return displayedLink?.replace(/^www\./, "");
+  }
 }
 
 function extractYear(value: string) {

@@ -20,6 +20,10 @@ body {
   overflow-x: hidden;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 button,
 textarea,
 a {
@@ -31,10 +35,25 @@ button {
 }
 
 .app-shell {
-  width: calc(100% - 32px);
+  width: calc(100vw - 32px);
   max-width: 920px;
+  min-width: 0;
   margin: 0 auto;
   padding: 82px 0 72px;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #24292f;
+  font-weight: 800;
+}
+
+.brand-cat {
+  width: 34px;
+  height: 34px;
+  image-rendering: pixelated;
 }
 
 .hero {
@@ -90,6 +109,7 @@ p {
 
 .composer-input {
   position: relative;
+  min-width: 0;
   min-height: 170px;
 }
 
@@ -144,6 +164,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
   gap: 12px;
 }
 
@@ -203,6 +224,8 @@ textarea {
 
 .composer button {
   flex: 0 0 auto;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .composer button:disabled {
@@ -259,11 +282,13 @@ textarea {
 .prompt-strip {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
   gap: 8px;
   margin: 14px 0 22px;
 }
 
 .prompt-strip button {
+  min-width: 0;
   min-height: 34px;
   max-width: 100%;
   padding: 0 11px;
@@ -302,6 +327,43 @@ textarea {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid #dedfd8;
+}
+
+.collapsible-section {
+  display: block;
+}
+
+.collapsible-section[open] {
+  display: grid;
+}
+
+.section-summary {
+  position: relative;
+  display: block;
+  list-style: none;
+  cursor: pointer;
+  padding-right: 34px;
+}
+
+.section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.section-summary::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid #687076;
+  border-bottom: 2px solid #687076;
+  transform: rotate(45deg);
+  transition: transform 0.16s ease;
+}
+
+.collapsible-section[open] > .section-summary::after {
+  transform: translateY(4px) rotate(225deg);
 }
 
 .section-heading {
@@ -373,6 +435,19 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
+}
+
+.paper-reference {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 14px 0 0;
+  padding: 12px;
+  border: 1px solid #ecede8;
+  border-radius: 8px;
+  background: #f7f8f4;
+  color: #4c545c;
+  line-height: 1.5;
+  font-size: 13px;
 }
 
 .paper-actions a:not(.primary-link),
@@ -484,24 +559,15 @@ textarea {
   background: #e9f4f5;
 }
 
-.reference-box {
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin: 0;
-  padding: 14px;
-  border: 1px solid #dedfd8;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #31363d;
-  line-height: 1.5;
-  font-size: 14px;
-}
-
 @media (max-width: 720px) {
   .app-shell {
-    width: calc(100% - 48px);
+    width: calc(100vw - 48px);
     max-width: 920px;
     padding-top: 46px;
+  }
+
+  .app-brand {
+    justify-content: flex-start;
   }
 
   .hero h1 {

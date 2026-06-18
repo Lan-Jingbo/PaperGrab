@@ -5,7 +5,7 @@ import { Notice } from "./components/Notice.jsx";
 import { SearchComposer } from "./components/SearchComposer.jsx";
 import { PaperResults } from "./components/PaperResults.jsx";
 import { ResearchPlan } from "./components/ResearchPlan.jsx";
-import { ReferenceList } from "./components/ReferenceList.jsx";
+import { PixelCat } from "./components/PixelCat.jsx";
 
 function App() {
   const [query, setQuery] = React.useState("");
@@ -46,6 +46,11 @@ function App() {
 
   return (
     <main className="app-shell">
+      <header className="app-brand" aria-label="aCATamic">
+        <PixelCat className="brand-cat" />
+        <span>aCATamic</span>
+      </header>
+
       <section className="hero" aria-label="PaperGrab intro">
         <h1>
           <span>Where you want to start</span>
@@ -68,7 +73,6 @@ function App() {
 
       <PaperResults papers={papers} />
       <ResearchPlan plan={plan} actions={actions} advice={researchAdvice} />
-      <ReferenceList papers={papers} />
     </main>
   );
 }

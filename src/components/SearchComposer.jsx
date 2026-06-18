@@ -4,6 +4,12 @@ import { PixelCat } from "./PixelCat.jsx";
 export function SearchComposer({ query, setQuery, loading, onSubmit }) {
   const showPlaceholder = !query.trim();
 
+  function handleKeyDown(event) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    if (!loading && query.trim()) onSubmit(event);
+  }
+
   return (
     <form className={`composer ${loading ? "is-loading" : ""}`} onSubmit={onSubmit}>
       <div className="composer-input">
@@ -13,7 +19,13 @@ export function SearchComposer({ query, setQuery, loading, onSubmit }) {
             <span>Let me know what you are finding,</span>
           </div>
         )}
-        <textarea value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Research topic" rows={4} />
+        <textarea
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
+          aria-label="Research topic"
+          rows={4}
+        />
       </div>
       <div className="composer-footer">
         {loading && (

@@ -4,14 +4,16 @@ export function ResearchPlan({ plan, actions, advice }) {
   if (!plan && !actions.length && !advice) return null;
 
   return (
-    <section className="section-block" aria-label="Research plan and advice">
-      <div className="section-heading">
-        <span>2</span>
-        <div>
-          <h2>Research plan</h2>
-          <p>Use this as a starting point for hypothesis design and study setup.</p>
+    <details className="section-block collapsible-section" aria-label="Research plan and advice">
+      <summary className="section-summary">
+        <div className="section-heading">
+          <span>2</span>
+          <div>
+            <h2>Research plan</h2>
+            <p>Use this as a starting point for hypothesis design and study setup.</p>
+          </div>
         </div>
-      </div>
+      </summary>
 
       {advice && (
         <div className="advice-grid">
@@ -57,7 +59,7 @@ export function ResearchPlan({ plan, actions, advice }) {
           </div>
         </details>
       )}
-    </section>
+    </details>
   );
 }
 
