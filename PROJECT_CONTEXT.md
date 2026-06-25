@@ -25,7 +25,7 @@ PaperGrab is a React + Netlify web app for researchers. The user-facing product 
 ## Stack
 
 - React with Vite
-- Netlify Functions at `netlify/functions/search.ts`
+- Netlify Functions at `netlify/functions/search.ts`, with backend search logic split into `netlify/functions/search/`
 - Netlify deploy target: `papergrab`
 - GitHub repo: `Lan-Jingbo/PaperGrab`
 - Optional env: `SERPAPI_API_KEY` enables Google Scholar results through SerpAPI.
@@ -39,7 +39,8 @@ PaperGrab is a React + Netlify web app for researchers. The user-facing product 
 - `src/api/papers.js`: frontend API helper
 - `src/styles.css`: shared UI styling
 - `public/papergrab-logo.svg`: cat-inspired product logo and favicon
-- `netlify/functions/search.ts`: search planning, source browsing, ranking, research advice
+- `netlify/functions/search.ts`: thin `/api/search` Netlify Function entrypoint
+- `netlify/functions/search/`: focused search backend modules for types, planning, advice, sources, ranking, availability, formatting, HTTP helpers, and constants
 - `skills/skill.md`: current paper-finding workflow for future agents
 - `CODING_RULES.md`: local rules for future changes
 

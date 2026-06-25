@@ -62,6 +62,15 @@ Commit: `981ea7d Build PaperGrab React app`
 
 ## System
 
+### Refactor Search Backend Modules
+
+- Split the oversized Netlify search function into focused modules under `netlify/functions/search/`.
+- Kept `netlify/functions/search.ts` as the thin `/api/search` entrypoint.
+- Preserved compact source browsing, optional SerpAPI Google Scholar/University Sites, ranking, PDF availability checks, and research advice behavior.
+- Updated project context and paper-finding skill notes for the modular backend.
+
+Commit: included in `Refactor search backend and add pitch deck`
+
 ### Add University Sites And Paper-Finding Skill
 
 - Added `University Sites` as an optional source through SerpAPI Google JSON.

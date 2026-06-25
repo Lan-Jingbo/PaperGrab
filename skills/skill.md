@@ -24,6 +24,13 @@ Return useful papers with PDF links first, then research planning advice, while 
 8. Return each paper with its own APA-style reference, source link, and PDF link when available.
 9. Build a compact research plan and advice from the request and top returned paper titles.
 
+## Implementation Map
+
+- `netlify/functions/search.ts` should stay a thin request/response entrypoint.
+- Source browsing lives in `netlify/functions/search/sources.ts` and `source-searches.ts`.
+- Ranking, availability checks, reference formatting, planning, and advice each live in their own backend module.
+- Add discipline-specific search behavior as new skills first, then wire only the needed compact source logic into backend modules.
+
 ## Output Priorities
 
 1. PDF papers
